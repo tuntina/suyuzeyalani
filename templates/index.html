@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <title>Su Yüzey Alanı Hesaplama</title>
+  <style>
+    /* Leaflet.PM (geoman) kontrollerini gizle */
+    .leaflet-pm-container { display: none !important; }
+
+    body { margin:0; font-family:Arial,sans-serif; }
+    .sidebar {
+      position:fixed; width:300px; top:0; bottom:0;
+      overflow-y:auto; padding:20px;
+      background:#f8f9fa; box-shadow:2px 0 5px rgba(0,0,0,0.1);
+    }
+    .form-group { margin-bottom:20px; }
+    select, button {
+      width:100%; padding:8px; box-sizing:border-box;
+      margin-top:4px; font-size:1rem;
+    }
+    button { border:none; border-radius:4px; cursor:pointer; }
+    button[type="submit"] {
+      background:#0d6efd; color:#fff; margin-top:10px;
+    }
+    .map-container {
+      margin-left:300px; position:relative; height:100vh;
+    }
+    .area-overlay {
+      position:absolute; top:10px; left:60px;
+      background:rgba(255,255,255,0.9);
+      padding:15px; border-radius:6px;
+      z-index:1000; font-size:1.2rem;
+    }
+    .area-overlay p { margin:6px 0; }
+  </style>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // Yöntem güncelleme
+      function updateMethods(i) {
+        var sat = document.getElementById('satellite'+i).value;
+        var sel = document.getElementById('method'+i);
+        sel.innerHTML = '';
+        var opts = sat === 'Sentinel-1'
+                  ? ['VV','VH']
+                  : ['NDWI','MNDWI'];
+        opts.forEach(function(o) {
+          var opt = document.createElement('option');
+          opt.value = opt.text = o;
+          sel.appendChild(opt);
+        });
+      }
+      updateMethods(1); updateMethods(2);
+      document.getElementById('satellite1')
+        .addEventListener('change',function(){updateMethods(1);});
+      document.getElementById('satellite2')
+        .addEventListener('change',function(){updateMethods(2);});
+
+      // Harita objesini bul
+      var mapObj=null;
+      for(var k in window){
+        if(k.indexOf('map_')===0){ mapObj=window[k]; break; }
+      }
+      if(!mapObj) return;
+
+      // Draw event'leri
+      mapObj.on('draw:created', function(e) {
+        mapObj.eachLayer(function(layer){
+          if(layer instanceof L.GeoJSON||layer instanceof L.Path){
+            mapObj.removeLayer(layer);
+          }
+        });
+        var geom = e.layer.toGeoJSON().geometry;
+        document.getElementById('drawn_geojson').value =
+          JSON.stringify(geom);
+        e.layer.addTo(mapObj);
+      });
+      mapObj.on('draw:deleted', function(){
+        document.getElementById('drawn_geojson').value='';
+      });
+    });
+  </script>
+</head>
+<body>
+  <div class="sidebar">
+    <h2>Parametre Seçimi</h2>
+    <form method="post">
+      <input type="hidden" id="drawn_geojson" name="drawn_geojson">
+
+      {% for i in [1,2] %}
+      <div class="form-group">
+        <h4>Görüntü {{i}}</h4>
+        <label for="satellite{{i}}">Uydu:</label>
+        <select id="satellite{{i}}" name="satellite{{i}}">
+          <option value="Sentinel-1"
+            {% if satellites[i-1]=='Sentinel-1' %}selected{% endif %}>
+            Sentinel-1
+          </option>
+          <option value="Sentinel-2"
+            {% if satellites[i-1]=='Sentinel-2' %}selected{% endif %}>
+            Sentinel-2
+          </option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="method{{i}}">Yöntem:</label>
+        <select id="method{{i}}" name="method{{i}}"></select>
+      </div>
+      <div class="form-group">
+        <label for="year{{i}}">Yıl:</label>
+        <select id="year{{i}}" name="year{{i}}">
+          {% for y in range(2018,2025) %}
+          <option value="{{y}}"
+            {% if years[i-1]==y|string %}selected{% endif %}>
+            {{y}}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="month{{i}}">Ay:</label>
+        <select id="month{{i}}" name="month{{i}}">
+          {% for m in range(1,13) %}
+          <option value="{{m}}"
+            {% if months[i-1]==m|string %}selected{% endif %}>
+            {{m}}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      {% endfor %}
+
+      <button type="submit">Karşılaştır</button>
+    </form>
+  </div>
+
+  <div class="map-container">
+    <div class="area-overlay">
+      <p>{{ label_texts[0] or '–' }}: {{ area_vals[0] or '–' }} km²</p>
+      <p>{{ label_texts[1] or '–' }}: {{ area_vals[1] or '–' }} km²</p>
+      {% if area_vals[2] is not none %}
+      {% endif %}
+    </div>
+    {{ map_html|safe }}
+  </div>
+</body>
+</html>
